@@ -252,6 +252,7 @@ server <- function(input, output, session) {
            "Biomas - Moran Local" = focos_bioma_proj,
            "LISAMAP Focos Estadual" = focos_proj,
            "LISAMAP Taxa de Internação /100mil hab" = internacoes_proj,
+           "LISAMAP Internação por Estado" = internacoes_proj,
            "LISAMAP Focos Biomas" = focos_bioma_proj,
            NULL)
   })
@@ -364,6 +365,7 @@ server <- function(input, output, session) {
         tm_scale_bar(position = c("left", "bottom")) +
         tm_credits("CRS: SIRGAS 2000 / UTM Zone 23S", position = c("RIGHT", "BOTTOM"), size = 0.6)
       print(tm2)
+      
     } else if (input$mapa_espacial_escolhido == "LISAMAP Taxa de Internação /100mil hab") {
       tmap_mode("plot")
       tmap_style("white")
@@ -420,10 +422,164 @@ server <- function(input, output, session) {
         tm_scale_bar(position = c("left", "bottom")) +
         tm_credits("CRS: SIRGAS 2000 / UTM Zone 23S", position = c("RIGHT", "BOTTOM"), size = 0.6)
       print(tm3)
+    } else if (input$mapa_espacial_escolhido == "LISAMAP Internação por Estado") {
+      tmap_mode("plot")
+      tmap_style("white")
+      tm5 <- tm_shape(internacoes_proj) +
+        tm_fill(
+          col = "cluster_type_2",
+          palette = c(
+            "Alto-Alto"         = "#E60000",
+            "Baixo-Baixo"       = "#0033CC",
+            "Baixo-Alto"        = "#9999FF",
+            "Alto-Baixo"        = "#FF9999",
+            "Não significativo" = "#FFFFFF"
+          ),
+          title = "Cluster Local (LISA)",
+          legend.is.portrait = TRUE
+        ) +
+        tm_borders(col = "gray40", lwd = 0.4) +
+        tm_layout(
+          main.title = "Mapa LISA - Internações por Estado",
+          main.title.size = 1.2,
+          main.title.position = "center",
+          legend.outside = TRUE,
+          frame = FALSE,
+          bg.color = "white"
+        ) +
+        tm_compass(type = "8star", position = c("right", "top"), size = 2) +
+        tm_scale_bar(position = c("left", "bottom")) +
+        tm_credits("CRS: SIRGAS 2000 / UTM Zone 23S", position = c("RIGHT", "BOTTOM"), size = 0.6)
+      print(tm5)
     } else {
       plot(1, main = "Selecione uma opção")  # fallback
     }
     
 })
-}
+  
+  ######## Outputs modelos: 
+    
+    # Estatísticas GWR
+output$summary_gwr <- renderPrint({
+  summary(gwr_modelo)
+})
+
+output$head_gwr <- renderTable({
+  head(as.data.frame(gwr_modelo$SDF))
+})
+
+
+
+# Mapa Predito GWR
+output$mapa_predito_gwr <- renderPlot({
+  ggplot(internacoes_proj) +
+    geom_sf(aes(fill = brks.gwr), color = "black", size = 0.1) +
+    scale_fill_brewer(palette = "YlOrRd", name = "Taxa") +
+    ggtitle("Taxa Predita - GWR") +
+    theme_void()
+})
+
+# Comparação GWR
+output$comparacao_gwr <- renderPlot({
+  gridExtra::grid.arrange(
+    ggplot(internacoes_proj) +
+      geom_sf(aes(fill = brks), color = "black", size = 0.1) +
+      scale_fill_brewer(palette = "YlOrRd") +
+      ggtitle("Taxa Bruta Observada") +
+      theme_void(),
+    ggplot(internacoes_proj) +
+      geom_sf(aes(fill = brks.gwr), color = "black", size = 0.1) +
+      scale_fill_brewer(palette = "YlOrRd") +
+      ggtitle("Taxa Predita - GWR") +
+      theme_void(),
+    ncol = 2
+  )
+})
+
+# Estatísticas CAR
+output$summary_car <- renderPrint({
+  summary(modelo_car)
+})
+
+output$head_car <- renderTable({
+(modelo_car$fitted.values)
+})
+
+
+# Mapa Predito CAR
+output$mapa_predito_car <- renderPlot({
+  ggplot(internacoes_proj) +
+    geom_sf(aes(fill = brks.car), color = "black", size = 0.1) +
+    scale_fill_brewer(palette = "YlOrRd", name = "Taxa") +
+    ggtitle("Taxa Predita - CAR") +
+    theme_void()
+})
+
+# Comparação CAR
+output$comparacao_car <- renderPlot({
+  gridExtra::grid.arrange(
+    ggplot(internacoes_proj) +
+      geom_sf(aes(fill = brks), color = "black", size = 0.1) +
+      scale_fill_brewer(palette = "YlOrRd") +
+      ggtitle("Taxa Bruta Observada") +
+      theme_void(),
+    ggplot(internacoes_proj) +
+      geom_sf(aes(fill = brks.car), color = "black", size = 0.1) +
+      scale_fill_brewer(palette = "YlOrRd") +
+      ggtitle("Taxa Predita - CAR") +
+      theme_void(),
+    ncol = 2
+  )
+})
+
+output$plot_residuos <- renderPlot({
+  cores <- c("#66C2A5", "#FC8D62", "#8DA0CB")
+  results <- as.data.frame(gwr_modelo$SDF)
+  r1<- car_modelo$residuals
+  r2 <- results$gwr.e
+  
+  # Gráfico de violino
+  vioplot(r1, r2,
+          names = c("CAR", "GWR"),
+          col = cores, border = "black", drawRect = TRUE)
+  
+  title(main = "Distribuição dos Resíduos por Modelo", cex.main = 1.2)
+  mtext("Resíduos", side = 2, line = 2.5, cex = 1.1)
+  abline(h = 0, lty = 2, col = "grey40")
+})
+
+####### TESTES
+dados_teste <- reactive({
+  switch(input$variavel_teste,
+         "Focos por Estado" = list(lw = lw_focos_estados, var = internacoes_proj$QtdFocos),
+         "Focos por Bioma" = list(lw = lw_bioma, var = focos_bioma$QtdFocos),
+         "Internações por Estado" = list(lw = lw_internacoes, var = internacoes_proj$Internações),
+         "Taxa de Internações por Estado" = list(lw = lw_internacoes, var = internacoes_proj$taxa_incidencia)
+  )
+})
+
+output$matriz_vizinhanca <- renderDT({
+  lw <- dados_teste()$lw
+  mat <- as.matrix(listw2mat(lw))
+  datatable(round(mat, 3), options = list(scrollX = TRUE, pageLength = 5))
+})
+
+output$resultado_teste <- renderPrint({
+  lw <- dados_teste()$lw
+  var <- dados_teste()$var
+  moran.test(var, lw)
+})
+
+output$resultado_local <- renderDT({
+  lw <- dados_teste()$lw
+  var <- dados_teste()$var
+  local <- localmoran(var, lw)
+  colnames(local) <- c("Ii", "E.Ii", "Var.Ii", "Z.Ii", "p-valor")
+  local_df <- as.data.frame(local) %>%
+    dplyr::mutate(ID = row_number()) %>%
+    dplyr::select(ID, everything()) %>%
+    dplyr::mutate(dplyr::across(dplyr::where(is.numeric), round, 4))
+  datatable(local_df, options = list(pageLength = 10), rownames = FALSE)
+})
+  }
   

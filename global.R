@@ -28,11 +28,11 @@ library(spdep)
 library(spatialreg)
 library(spgwr)
 library(gstat)
-library(automap)
 library(ggplot2)
 library(sf)
 library(ggspatial)
 library(grid)
+library(vioplot)
 
 
 # Caminho da pasta de dados
@@ -65,8 +65,8 @@ load(file.path(caminho_dados, "nb_internacoes.RData"))
 #load(file.path(caminho_dados, "pontos_sf.RData"))
 load(file.path(caminho_dados, "POPULACAO.RData"))
 
-car_model <- readRDS(file.path(caminho_dados, "car_model.rds"))
-gwr_model <- readRDS(file.path(caminho_dados, "gwr_model.rds"))
+car_modelo <- readRDS(file.path(caminho_dados, "modelo_car.rds"))
+gwr_modelo <- readRDS(file.path(caminho_dados, "gwr_modelo.rds"))
 
 #datasets
 lista_datasets <- list(
